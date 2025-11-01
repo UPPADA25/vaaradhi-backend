@@ -174,6 +174,7 @@ app.post("/api/payment/verify", async (req, res) => {
 app.post("/api/wallet/add", async (req, res) => {
   try {
     const { userId, points, rupees = 0, note = "" } = req.body;
+
     if (!userId || typeof points !== "number") {
       return res.status(400).json({
         success: false,
@@ -183,7 +184,7 @@ app.post("/api/wallet/add", async (req, res) => {
 
     let wallet = await Wallet.findOne({ userId });
 
-    // Create wallet if user doesn’t have one
+    // 🧠 Create wallet if missing
     if (!wallet) {
       wallet = new Wallet({
         userId,
@@ -199,7 +200,9 @@ app.post("/api/wallet/add", async (req, res) => {
         ],
       });
     } else {
-      // Update existing wallet
+      // ✅ Ensure transactions array exists
+      if (!wallet.transactions) wallet.transactions = [];
+
       wallet.totalPoints += points;
       wallet.totalRupees += rupees;
       wallet.transactions.push({
@@ -230,6 +233,7 @@ app.post("/api/wallet/add", async (req, res) => {
       .json({ success: false, message: "Server error: " + err.message });
   }
 });
+
 
 
 
