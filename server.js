@@ -237,24 +237,26 @@ app.post("/api/wallet/add", async (req, res) => {
 
 
 
-// ✅ Fetch wallet total
 app.get("/api/wallet/balance/:userId", async (req, res) => {
   try {
     const wallet = await Wallet.findOne({ userId: req.params.userId });
 
-    if (!wallet)
+    if (!wallet) {
+      // return empty wallet balance if user has no wallet yet
       return res.json({ success: true, totalPoints: 0, totalRupees: 0 });
+    }
 
     res.json({
       success: true,
-      totalPoints: wallet.totalPoints,
-      totalRupees: wallet.totalRupees,
+      totalPoints: wallet.totalPoints || 0,
+      totalRupees: wallet.totalRupees || 0,
     });
   } catch (err) {
     console.error("❌ Fetch Wallet Balance Error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
+
 
 
 // ------------------------
