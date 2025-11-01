@@ -30,16 +30,27 @@ const razorpay = new Razorpay({
 });
 
 // ========================
-// 🧾 SCHEMAS
+// 💰 WALLET SCHEMA
 // ========================
 const walletSchema = new mongoose.Schema({
-  userId: String,
-  points: { type: Number, default: 0 },
-  rupees: { type: Number, default: 0 },
-  date: { type: Date, default: Date.now },
+  userId: { type: String, required: true, unique: true },
+  totalPoints: { type: Number, default: 0 },
+  totalRupees: { type: Number, default: 0 },
+  transactions: [
+    {
+      points: Number,
+      rupees: Number,
+      type: { type: String, enum: ["credit", "debit"], default: "credit" },
+      note: String,
+      date: { type: Date, default: Date.now },
+    },
+  ],
 });
 const Wallet = mongoose.model("Wallet", walletSchema);
 
+// ========================
+// 📋 FORM SCHEMA
+// ========================
 const formSchema = new mongoose.Schema({
   name: String,
   mobile: String,
@@ -80,7 +91,12 @@ app.post("/api/auth/register", async (req, res) => {
     await user.save();
 
     // 🪙 Create empty wallet for new user
-    await new Wallet({ userId: user._id, points: 0, rupees: 0 }).save();
+    await new Wallet({
+      userId: user._id.toString(),
+      totalPoints: 0,
+      totalRupees: 0,
+      transactions: [],
+    }).save();
 
     res.json({ success: true, message: "User registered successfully" });
   } catch (err) {
@@ -171,6 +187,7 @@ app.post("/api/payment/verify", async (req, res) => {
 // 💰 WALLET ROUTES
 // ------------------------
 
+// ✅ Add or Deduct Wallet Points
 app.post("/api/wallet/add", async (req, res) => {
   try {
     const { userId, points, rupees = 0, note = "" } = req.body;
@@ -234,15 +251,12 @@ app.post("/api/wallet/add", async (req, res) => {
   }
 });
 
-
-
-
+// ✅ Fetch Wallet Balance
 app.get("/api/wallet/balance/:userId", async (req, res) => {
   try {
     const wallet = await Wallet.findOne({ userId: req.params.userId });
 
     if (!wallet) {
-      // return empty wallet balance if user has no wallet yet
       return res.json({ success: true, totalPoints: 0, totalRupees: 0 });
     }
 
@@ -257,7 +271,20 @@ app.get("/api/wallet/balance/:userId", async (req, res) => {
   }
 });
 
-
+// ✅ (Optional) Fetch Wallet Transactions
+app.get("/api/wallet/transactions/:userId", async (req, res) => {
+  try {
+    const wallet = await Wallet.findOne({ userId: req.params.userId });
+    if (!wallet) return res.json({ success: true, transactions: [] });
+    res.json({
+      success: true,
+      transactions: wallet.transactions.sort((a, b) => b.date - a.date),
+    });
+  } catch (err) {
+    console.error("❌ Fetch Transactions Error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // ------------------------
 // 📋 FORM ROUTES
