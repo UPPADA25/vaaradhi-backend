@@ -171,38 +171,86 @@ app.post("/api/payment/verify", async (req, res) => {
 // 💰 WALLET ROUTES
 // ------------------------
 
-// Add Wallet Points
 app.post("/api/wallet/add", async (req, res) => {
   try {
-    const { userId, points, rupees } = req.body;
+    const { userId, points, rupees = 0, note = "" } = req.body;
+    if (!userId || typeof points !== "number") {
+      return res.status(400).json({
+        success: false,
+        message: "Missing or invalid fields (userId or points)",
+      });
+    }
 
-    if (!userId || !points || !rupees)
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
+    let wallet = await Wallet.findOne({ userId });
 
-    const wallet = new Wallet({ userId, points, rupees });
+    // Create wallet if user doesn’t have one
+    if (!wallet) {
+      wallet = new Wallet({
+        userId,
+        totalPoints: points,
+        totalRupees: rupees,
+        transactions: [
+          {
+            points,
+            rupees,
+            type: points >= 0 ? "credit" : "debit",
+            note,
+          },
+        ],
+      });
+    } else {
+      // Update existing wallet
+      wallet.totalPoints += points;
+      wallet.totalRupees += rupees;
+      wallet.transactions.push({
+        points,
+        rupees,
+        type: points >= 0 ? "credit" : "debit",
+        note,
+      });
+    }
+
     await wallet.save();
 
-    res.json({ success: true, message: "Wallet updated successfully", wallet });
+    res.json({
+      success: true,
+      message:
+        points >= 0
+          ? "Wallet credited successfully"
+          : "Wallet debited successfully",
+      balance: {
+        totalPoints: wallet.totalPoints,
+        totalRupees: wallet.totalRupees,
+      },
+    });
   } catch (err) {
+    console.error("❌ Wallet Update Error:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Server error: " + err.message });
+  }
+});
+
+
+
+app.get("/api/wallet/balance/:userId", async (req, res) => {
+  try {
+    const wallet = await Wallet.findOne({ userId: req.params.userId });
+
+    if (!wallet)
+      return res.json({ success: true, totalPoints: 0, totalRupees: 0 });
+
+    res.json({
+      success: true,
+      totalPoints: wallet.totalPoints,
+      totalRupees: wallet.totalRupees,
+    });
+  } catch (err) {
+    console.error("❌ Fetch Wallet Balance Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Get Wallet Balance
-app.get("/api/wallet/balance/:userId", async (req, res) => {
-  try {
-    const walletData = await Wallet.find({ userId: req.params.userId }).sort({
-      date: -1,
-    });
-    const totalPoints = walletData.reduce((sum, w) => sum + w.points, 0);
-    const totalRupees = walletData.reduce((sum, w) => sum + w.rupees, 0);
-    res.json({ success: true, totalPoints, totalRupees });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // ------------------------
 // 📋 FORM ROUTES
